@@ -1,38 +1,98 @@
-# TODO: this file returns dummy data: everything should be replaced by calls to your logic
-# Feel free to implement your logic within this process, or make calls to an external service
-
 import streamlit as st
+from datetime import timedelta
 
-from models import ChargerState, DemoAdminState, CombinedState
+def start_charge():
+    if st.session_state["car_is_plugged_in"]:
+        st.session_state["car_is_charging"] = True
+        st.session_state["charge_is_override"] = True
+        st.session_state["charge_start_date"] = st.session_state["system_date"]
+        st.toast("Started charging!", icon="🚀")
 
+        # Store the override start time
+        st.session_state["override_start_time"] = st.session_state["system_time"]
+        st.session_state["override_start_date"] = st.session_state["system_date"]
+    else:
+        st.toast("Cannot start charging: car is unplugged.", icon="⚡")
 
-def get_future_states() -> list[CombinedState]:
-    """Return a list of future states for the system. This is used for plotting the charge trajectory."""
-    # TODO: replace this with your logic
-    return []
+def stop_charge():
+    if st.session_state["car_is_charging"]:
+        if not st.session_state["charge_is_override"]:
+            # If this was a scheduled charge, disable schedule until tomorrow
+            st.session_state["schedule_charge_enabled"] = False
+            st.session_state["schedule_charge_disable_date"] = st.session_state["system_date"]
+        st.session_state["car_is_charging"] = False
+        st.session_state["charge_is_override"] = False
+        st.toast("Stopped charging.", icon="⚠️")
 
+def render_charge_controls():
+    """Render Start/Stop Charging buttons based on current session state."""
+    car_is_charging = st.session_state.get("car_is_charging")
+    car_is_plugged_in = st.session_state.get("car_is_plugged_in")
+    start_disabled = car_is_charging or not car_is_plugged_in
+    stop_disabled = not car_is_charging
 
-def get_car_state(demo_state: DemoAdminState) -> ChargerState:
-    # TODO: replace this with your logic. Feel free to rewrite to combine with the function above if necessary.
-    # When you're done, we shouldn't have these toggles in the frontend; they should be determined by the backend.
-    with st.sidebar:
-        car_is_charging = st.toggle(
-            "Currently Charging", value=True, disabled=not demo_state.car_is_plugged_in
-        )
-        charge_is_override = st.toggle(
-            "Charging is Override", value=True, disabled=not demo_state.car_is_plugged_in
-        )
+    c1, c2 = st.columns([1, 1])
 
-    return ChargerState(
-        car_is_charging=car_is_charging, charge_is_override=charge_is_override
+    c1.button(
+        "Start Charging",
+        disabled=start_disabled,
+        on_click=start_charge,
+    )
+
+    c2.button(
+        "Stop Charging",
+        disabled=stop_disabled,
+        on_click=stop_charge,
     )
 
 
-def handle_start_charge():
-    # TODO: handle when the user presses the "Start Charge" button
-    st.toast("Starting charge!", icon="🚀")
+def render_user_dashboard():
+    with st.container():
+        st.markdown("## 🚘 Car Status Dashboard")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric("📅 Date", str(st.session_state["system_date"]))
+            st.metric("⏰ Time", str(st.session_state["system_time"]))
+            if st.session_state['current_soc'] > 15:
+                st.metric("🔋 State of Charge", f"{st.session_state['current_soc']}%")
+            else:
+                st.metric("⚠️🔋 State of Charge", f"{st.session_state['current_soc']}%")
+            
+        with col2:
+            plugged = st.session_state["car_is_plugged_in"]
+            charging = st.session_state["car_is_charging"]
+            override = st.session_state["charge_is_override"]
+
+            st.markdown(f"**🔌 Plugged In:** {'<span style=\"color:green\">Yes</span>' if plugged else '<span style=\"color:red\">No</span>'}", unsafe_allow_html=True)
+            st.markdown(f"**⚡ Charging:** {'<span style=\"color:green\">Yes</span>' if charging else '<span style=\"color:red\">No</span>'}", unsafe_allow_html=True)
+            st.markdown(f"**🚦 Override:** {'<span style=\"color:orange\">Active</span>' if override else '<span style=\"color:grey\">Off</span>'}", unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        schedule_enabled = st.session_state.get("schedule_charge_enabled", True)
+        car_plugged_in = st.session_state.get("car_is_plugged_in", True)
+        disable_date = st.session_state.get("schedule_charge_disable_date")
+
+        st.markdown(
+            f"**📋 Schedule Charging:** "
+            f"{'<span style=\"color:green\">Enabled</span>' if schedule_enabled else '<span style=\"color:red\">Disabled</span>'}",
+            unsafe_allow_html=True,
+        )
+
+        # 🚫 Warning if charging is scheduled but car is unplugged
+        if schedule_enabled and not car_plugged_in:
+            st.markdown(
+                "<span style='color:orange'>⚠️ Scheduled charging is active, but the car is not plugged in.</span>",
+                unsafe_allow_html=True,
+            )
+
+        # 📅 Note if charging is disabled
+        if not schedule_enabled and disable_date:
+            st.markdown(
+                f"<span style='color:gray'>ℹ️ Scheduled charging will be re-enabled at 00:00 on {disable_date + timedelta(days=1)}.</span>",
+                unsafe_allow_html=True,
+            )
 
 
-def handle_stop_charge():
-    # TODO: handle when the user presses the "Stop Charge" button
-    st.toast("Stopping charge", icon="⚠️")

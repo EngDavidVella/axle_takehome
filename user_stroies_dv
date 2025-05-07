@@ -1,0 +1,18 @@
+User Stories
+
+	View charging information:
+		The user can see the current battery State of Charge (SoC), the scheduled charging window, and the predicted SoC after scheduled charging.
+
+	Start immediate charging:
+		The user can press "Start Charging" to begin charging immediately for a fixed 60-minute period, but only if the car is plugged in.
+
+	Stop override charging:
+		If the user has manually overridden the schedule, they can press "Stop Charging" to immediately stop charging and resume scheduled behavior.
+
+	Stop scheduled charging:
+		If scheduled charging is active, pressing "Stop Charging" cancels today's scheduled charging, and normal scheduling will resume the next day.
+
+	Handle plug-in state:
+		If the car is not plugged in, "Start Charging" has no effect on the car’s state, but the scheduled charging will activate automatically when the car is plugged back in during the schedule window.
+
+
