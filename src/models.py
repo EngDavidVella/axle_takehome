@@ -28,55 +28,38 @@ class SystemStateManager:
             if key not in st.session_state:
                 st.session_state[key] = value
     
-    def _check_schedule_reset(self):
-        """
-        Re-enable scheduled charging if a new day has started.
-        Clears the 'schedule_charge_disable_date' flag if reset.
-        """
-        current_date = st.session_state["system_date"]
-        disable_date = st.session_state.get("schedule_charge_disable_date")
+def _update_charging_state(self):
+    """Determine whether the car should be charging, in priority order."""
+    now = datetime.combine(st.session_state["system_date"], st.session_state["system_time"])
 
-        if disable_date and current_date > disable_date:
-            st.session_state["schedule_charge_enabled"] = True
-            st.session_state["schedule_charge_disable_date"] = None
-    
-    def _update_charging_state(self):
-        """Automatically determine whether the car should be charging."""
-        now = datetime.combine(st.session_state["system_date"], st.session_state["system_time"])
+    # Must be plugged in to charge at all
+    if not st.session_state.get("car_is_plugged_in", True):
+        st.session_state["car_is_charging"] = False
+        return
 
-        # Check if an override session has expired
-        if st.session_state.get("charge_is_override", False):
-            override_start_date = st.session_state.get("override_start_date")
-            override_start_time = st.session_state.get("override_start_time")
+    # Handle override charge logic
+    if st.session_state.get("charge_is_override", False):
+        override_start_date = st.session_state.get("override_start_date")
+        override_start_time = st.session_state.get("override_start_time")
 
-            if override_start_date and override_start_time: # Redundant over-check?
-                override_start = datetime.combine(override_start_date, override_start_time)
-                if now >= override_start + timedelta(hours=1):
-                    # Override charging window has passed
-                    st.session_state["charge_is_override"] = False
-                    st.session_state["car_is_charging"] = False
-                    st.toast("Override charging session ended.", icon="⏹️")
-                    return
-                else:
-                    # Override is still active
-                    st.session_state["car_is_charging"] = True
-                    return
-
-        if not st.session_state.get("schedule_charge_enabled", True):
-            st.session_state["car_is_charging"] = False
-            return
-        
-        if not st.session_state.get("car_is_plugged_in", True):
-            st.session_state["car_is_charging"] = False
+        if override_start_date and override_start_time:
+            override_start = datetime.combine(override_start_date, override_start_time)
+            if now >= override_start + timedelta(hours=1):
+                st.session_state["charge_is_override"] = False
+                st.session_state["car_is_charging"] = False
+                st.toast("Override charging session ended.", icon="⏹️")
+            else:
+                st.session_state["car_is_charging"] = True
             return
 
+    # If schedule is disabled, don't charge
+    if not st.session_state.get("schedule_charge_enabled", True):
+        st.session_state["car_is_charging"] = False
+        return
 
-        schedule_start, schedule_end = get_standard_schedule(now)
-
-        if schedule_start <= now < schedule_end:
-            st.session_state["car_is_charging"] = True
-        else:
-            st.session_state["car_is_charging"] = False
+    # Apply standard schedule
+    schedule_start, schedule_end = get_standard_schedule(now)
+    st.session_state["car_is_charging"] = schedule_start <= now < schedule_end
 
 
     def _render_sidebar_controls_for_demo(self): 
